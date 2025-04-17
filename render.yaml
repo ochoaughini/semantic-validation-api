@@ -2,13 +2,13 @@ services:
   - type: web
     name: semantic-validation-api
     env: docker
-    region: oregon  # US West
+    region: oregon
     plan: starter
-    dockerfilePath: ./Dockerfile  # Root directory
-    dockerContext: .
-    healthCheckPath: /health  # Match our FastAPI endpoint
+    dockerfilePath: Dockerfile
+    dockerContext: /
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8080
-    buildCommand: docker build -t semantic-validation-api .
+    buildCommand: docker build -t semantic-validation-api /opt/render/project/src
     startCommand: docker run -p $PORT:8080 semantic-validation-api
