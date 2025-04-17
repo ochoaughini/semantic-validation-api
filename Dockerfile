@@ -7,8 +7,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
-    curl \
     git \
+    curl \
+    cmake \
+    pkg-config \
+    libffi-dev \
+    libblas-dev \
+    liblapack-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -19,32 +24,44 @@ ENV ENVIRONMENT=production
 ENV EMBEDDING_MODEL="all-MiniLM-L6-v2"
 ENV TRANSFORMERS_CACHE=/app/.cache/transformers
 ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
+ENV TOKENIZERS_PARALLELISM=false
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
 
-# Create cache directories with correct permissions
-RUN mkdir -p /app/.cache/transformers /app/.cache/sentence_transformers
+# Make cache directories accessible to nobody user
+RUN mkdir -p /app/.cache/transformers /app/.cache/sentence_transformers && \
+    chmod -R 777 /app/.cache
 
-# Copy requirements first and install dependencies
+# Copy requirements first (split installations for better caching)
 COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
 
-# Copy all application code
+# Install dependencies in separate steps for better layer caching
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir numpy==1.25.2 
+
+RUN pip install --no-cache-dir pydantic==1.10.7 fastapi==0.95.2 uvicorn==0.22.0
+
+RUN pip install --no-cache-dir PyYAML==6.0.1 python-dotenv==1.0.0 loguru==0.7.0 bleach==6.0.0
+
+# Install sentence-transformers separately (don't download models yet)
+RUN pip install --no-cache-dir "sentence-transformers>=2.2.2" "scikit-learn>=1.2.2"
+
+# Copy remaining application code
 COPY backend/config.yaml /app/config.yaml
 COPY backend/config.py /app/config.py
 COPY backend/schemas.py /app/schemas.py
 COPY backend/semantic_service.py /app/semantic_service.py
 COPY backend/main.py /app/main.py
 
-# Pre-download models with error handling
-RUN pip install --no-cache-dir "sentence-transformers>=2.2.2" && \
-    python -c "import os; os.environ['TOKENIZERS_PARALLELISM'] = 'false'; \
-    from sentence_transformers import SentenceTransformer; \
-    try: \
-        model = SentenceTransformer('all-MiniLM-L6-v2'); \
-        print('Model downloaded successfully!'); \
-    except Exception as e: \
-        print(f'Warning: Model pre-download failed: {e}'); \
-        print('Will attempt to download at runtime');"
+# Create a startup script that downloads the model if needed
+RUN echo '#!/bin/bash\n\
+echo "Starting Semantic Validation API..."\n\
+echo "Model will be downloaded on first request"\n\
+echo "Running as user: $(id)"\n\
+echo "Working directory: $(pwd)"\n\
+echo "Cache directory permissions: $(ls -la /app/.cache)"\n\
+exec uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 1\n\
+' > /app/start.sh && chmod +x /app/start.sh
 
 # Set permissions for application and cache dirs
 RUN chown -R nobody:nogroup /app && \
@@ -56,17 +73,10 @@ USER nobody
 # Expose port
 EXPOSE ${PORT}
 
-# Add curl for health check
-USER root
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-USER nobody
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+# Health check with longer start period to account for model download
+HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Start the application
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 1"]
+# Start the application with the startup script
+CMD ["/app/start.sh"]
 
