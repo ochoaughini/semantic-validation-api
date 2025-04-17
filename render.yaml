@@ -5,9 +5,7 @@ services:
     plan: starter
     region: oregon
     healthCheckPath: /health
-    rootDirectory: backend
-    buildCommand: docker build -f Dockerfile -t semantic-validation-api .
-    startCommand: docker run -p $PORT:8080 semantic-validation-api
+    rootDirectory: .
     envVars:
       - key: PORT
         value: 8080
