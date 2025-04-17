@@ -1,0 +1,11 @@
+# Ignore development and system files
+.git
+.gitignore
+__pycache__
+*.pyc
+.DS_Store
+.env
+.venv
+node_modules
+frontend/
+README.md
