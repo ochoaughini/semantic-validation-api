@@ -44,14 +44,25 @@ RUN pip install --no-cache-dir pydantic==1.10.7 fastapi==0.95.2 uvicorn==0.22.0
 RUN pip install --no-cache-dir PyYAML==6.0.1 python-dotenv==1.0.0 loguru==0.7.0 bleach==6.0.0
 
 # Install sentence-transformers separately (don't download models yet)
-RUN pip install --no-cache-dir "sentence-transformers>=2.2.2" "scikit-learn>=1.2.2"
+RUN pip install --no-cache-dir "sentence-transformers>=2.2.2" "scikit-learn>=1.2.2" psutil
 
-# Copy remaining application code
-COPY backend/config.yaml /app/config.yaml
-COPY backend/config.py /app/config.py
-COPY backend/schemas.py /app/schemas.py
-COPY backend/semantic_service.py /app/semantic_service.py
+# Create necessary directory structure
+RUN mkdir -p /app/src/routers /app/src/static
+
+# Copy application code
+COPY backend/src/config.yaml /app/src/config.yaml
+COPY backend/src/config.py /app/src/config.py
+COPY backend/src/schemas.py /app/src/schemas.py
+COPY backend/src/semantic_service.py /app/src/semantic_service.py
+COPY backend/src/auth.py /app/src/auth.py
+COPY backend/src/logging_config.py /app/src/logging_config.py
 COPY backend/main.py /app/main.py
+
+# Copy router files
+COPY backend/src/routers/ /app/src/routers/
+
+# Copy static files
+COPY backend/src/static/ /app/src/static/
 
 # Create a startup script that downloads the model if needed
 RUN echo '#!/bin/bash\n\
@@ -60,6 +71,8 @@ echo "Model will be downloaded on first request"\n\
 echo "Running as user: $(id)"\n\
 echo "Working directory: $(pwd)"\n\
 echo "Cache directory permissions: $(ls -la /app/.cache)"\n\
+echo "Directory structure:"\n\
+echo "$(ls -la /app/src)"\n\
 exec uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 1\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
