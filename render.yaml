@@ -5,6 +5,8 @@ services:
     plan: starter
     region: oregon
     healthCheckPath: /health
+    dockerfilePath: backend/Dockerfile  # Point to backend Dockerfile
+    dockerContext: backend  # Set context to backend directory
     envVars:
       - key: PORT
         value: 8080
