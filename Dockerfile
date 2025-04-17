@@ -1,30 +1,24 @@
-# Build stage
-FROM python:3.11-slim as builder
-
-WORKDIR /app
-
-# Copy only requirements first
-COPY backend/requirements.txt requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Final stage
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
+# Copy requirements first and install dependencies
+COPY backend/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY backend/main.py main.py
+COPY backend/main.py /app/main.py
 
 # Security settings
 USER nobody
+
+# Environment variable for port
+ENV PORT=8080
 
 # Expose port
 EXPOSE 8080
 
 # Start the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4"]
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 4
 
