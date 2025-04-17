@@ -9,15 +9,35 @@ body {
     max-width: 800px;
     margin: 0 auto;
     background-color: white;
-    padding: 20px;
+    padding: 30px;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
 }
 
 h1 {
     color: #333;
-    text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 8px;
+}
+
+.subtitle {
+    color: #666;
+    font-size: 16px;
+    margin-top: 0;
+}
+
+.form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.input-group {
+    position: relative;
 }
 
 label {
@@ -25,43 +45,122 @@ label {
     margin-top: 20px;
     color: #666;
     font-size: 14px;
+    font-weight: 500;
 }
 
 textarea {
     width: 100%;
     height: 100px;
-    padding: 10px;
+    padding: 12px;
     margin-top: 5px;
     border: 1px solid #ddd;
     border-radius: 4px;
     resize: vertical;
     font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
+}
+
+.char-counter {
+    position: absolute;
+    bottom: 5px;
+    right: 10px;
+    font-size: 12px;
+    color: #888;
+    background: rgba(255, 255, 255, 0.8);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
 }
 
 button {
-    display: block;
-    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-grow: 1;
     padding: 12px;
-    margin-top: 20px;
     background-color: #0066cc;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     font-size: 16px;
-    transition: background-color 0.2s;
+    font-weight: 500;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.secondary-button {
+    background-color: #f1f1f1;
+    color: #333;
+    flex-grow: 0;
+    width: 100px;
+}
+
+.secondary-button:hover {
+    background-color: #e5e5e5;
 }
 
 button:hover {
     background-color: #0052a3;
 }
 
+/* Loading spinner */
+.spinner {
+    display: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+    margin-left: 8px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* When loading is active */
+button.loading span {
+    opacity: 0.7;
+}
+
+button.loading .spinner {
+    display: block;
+}
+
 .result {
-    margin-top: 20px;
-    padding: 15px;
+    padding: 20px;
     border: 1px solid #ddd;
     border-radius: 4px;
     background-color: #f9f9f9;
+    min-height: 60px;
+}
+
+.result:empty {
+    display: none;
+}
+
+/* API status indicators */
+.status-online {
+    color: #4CAF50;
+    font-weight: 500;
+}
+
+.status-offline {
+    color: #F44336;
+    font-weight: 500;
 }
 
 footer {
