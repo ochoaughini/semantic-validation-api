@@ -1,0 +1,42 @@
+# Model configurations
+models:
+  default: all-MiniLM-L6-v2
+  clinical: pritamdeka/Bio_ClinicalBERT
+
+# Model mapping for different modules
+model_mapping:
+  AMA:    default
+  AI-MPN: clinical
+  TDBE:   default
+  SMCC:   default
+  ICSE:   default
+  OIFC:   default
+
+# Similarity thresholds for different modules
+thresholds:
+  AMA:    0.80  # Accuracy of Medical Assessment
+  AI-MPN: 0.85  # Alignment with Physician Notes
+  TDBE:   0.75  # Treatment Description Basic Elements
+  SMCC:   0.70  # Synthesized Medical Care Comparison
+  ICSE:   0.65  # Interpersonal Communication Style Equivalence
+  OIFC:   0.60  # Overall Information Fidelity Check
+
+# Medical terminology mappings
+medical_terms:
+  abbreviations:
+    "temp": "temperature"
+    "BP": "blood pressure"
+    "HR": "heart rate"
+    "O2": "oxygen"
+    "RR": "respiratory rate"
+    "Hx": "history"
+    "Dx": "diagnosis"
+    "Tx": "treatment"
+  
+  synonyms:
+    "fever": ["elevated temperature", "pyrexia", "hyperthermia"]
+    "cough": ["tussis", "coughing"]
+    "bacteria": ["bacterial", "bacteriological"]
+    "infection": ["inflammatory process", "sepsis"]
+    "respiratory": ["pulmonary", "breathing"]
+

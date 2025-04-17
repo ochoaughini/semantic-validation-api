@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Lint Python
+        run: |
+          pip install flake8
+          flake8 backend/src
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest --maxfail=1 --disable-warnings -q
+
+      - name: Build Docker image
+        run: |
+          docker build -t micah-api:latest -f backend/Dockerfile .
+
+  publish:
+    needs: lint-test-build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Docker Login
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin
+
+      - name: Push Docker image
+        run: |
+          docker tag micah-api:latest ${{ secrets.DOCKERHUB_USERNAME }}/micah-api:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/micah-api:latest
+
