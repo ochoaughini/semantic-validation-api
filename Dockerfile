@@ -2,23 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Create backend directory and set it as working directory
-WORKDIR /app/backend
-
-# Copy requirements first to leverage Docker cache
-COPY backend/requirements.txt ./requirements.txt
+# Copy only the requirements file first
+COPY ./backend/requirements.txt /app/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY backend/main.py ./main.py
+# Copy the main application file
+COPY ./backend/main.py /app/
 
-# Run with proper security settings
+# Security settings
 USER nobody
 
-# Expose port
+# Expose the port
 EXPOSE 8080
 
-# Start the application with proper settings
+# Start the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4"]
 
