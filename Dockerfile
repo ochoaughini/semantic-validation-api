@@ -2,18 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy only the requirements file first
-COPY requirements.txt /app/
+# Set build context to backend directory
+WORKDIR /app/backend
+
+# Copy backend files with correct paths
+COPY backend/requirements.txt backend/main.py ./
+
+# Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
-
-# Copy the main application file
-COPY main.py /app/
 
 # Security settings
 USER nobody
 
-# Expose the port
+# Expose port
 EXPOSE 8080
 
 # Start the application
