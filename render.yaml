@@ -2,5 +2,11 @@ services:
   - type: web
     name: semantic-validation-api
     env: docker
-    buildCommand: docker build -t semantic-validation-api .
-    startCommand: docker run -p 8080:8080 semantic-validation-api
+    region: us-west-1
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./
