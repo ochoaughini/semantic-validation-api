@@ -1,12 +1,11 @@
 FROM python:3.11-slim
 
+# Set the working directory
 WORKDIR /app
 
-# Set build context to backend directory
-WORKDIR /app/backend
-
-# Copy backend files with correct paths
-COPY backend/requirements.txt backend/main.py ./
+# Copy backend files individually with explicit paths
+COPY backend/requirements.txt requirements.txt
+COPY backend/main.py main.py
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
