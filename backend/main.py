@@ -13,17 +13,26 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://semantic-validation-api.onrender.com",       # Production on Render
+        # Render domains
+        "https://semantic-validation-api.onrender.com",       # Backend on Render
+        "https://semantic-validation-app.onrender.com",       # Possible frontend on Render
+        "https://semantic-validation.onrender.com",           # Alternative frontend name
+        "https://*.onrender.com",                             # All Render subdomains
+        
+        # Local development
         "http://localhost:3000",                             # Local frontend development
         "http://localhost:5000",                             # Alternative local frontend
         "http://localhost:8080",                             # Local backend
         "http://127.0.0.1:3000",                            # Local IPv4 frontend
         "http://127.0.0.1:5000",                            # Alternative local IPv4
         "http://127.0.0.1:8080",                            # Local IPv4 backend
+        
+        # Allow frontend to be served from any domain during testing
+        "*",                                                # Allow all origins temporarily
     ],
     allow_credentials=True,
-    allow_methods=["POST", "GET"],
-    allow_headers=["Content-Type"],
+    allow_methods=["POST", "GET", "OPTIONS"],                # Include OPTIONS for preflight
+    allow_headers=["Content-Type", "Authorization", "Origin", "Accept"],
 )
 
 class ValidationRequest(BaseModel):
