@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Validator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Semantic Validation API</h1>
+        <label for="inputText">Input Text:</label>
+        <textarea id="inputText" placeholder="Enter the candidate sentence..."></textarea>
+
+        <label for="referenceText">Reference Text:</label>
+        <textarea id="referenceText" placeholder="Enter the reference sentence..."></textarea>
+
+        <button id="validateButton">Validate</button>
+        
+        <div class="result" id="result"></div>
+    </div>
+
+    <footer>
+        <p>© 2025 Augusto Ochoa — 
+            <a href="https://github.com/ochoaughini" target="_blank">GitHub</a> • 
+            <a href="https://www.linkedin.com/in/augusto-ochoa" target="_blank">LinkedIn</a>
+        </p>
+    </footer>
+
+    <!-- Environment configuration -->
+    <script>
+        window.ENV = {
+            apiUrl: "https://semantic-validation-api.vercel.app"
+        };
+    </script>
+
+    <!-- Application scripts -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
