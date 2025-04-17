@@ -1,5 +1,4 @@
-// JavaScript logic for frontend
-console.log('Semantic Validator loaded');
+console.log("Semantic Validator loaded");
 
 document.getElementById("validateButton").addEventListener("click", async () => {
   const inputText = document.getElementById("inputText").value;
@@ -9,15 +8,15 @@ document.getElementById("validateButton").addEventListener("click", async () => 
   resultDiv.innerHTML = "Loading...";
 
   try {
-    const response = await fetch("https://semantic-validation-api.onrender.com/validate", {
+    const response = await fetch("https://semantic-validation-api.onrender.com/api/validate", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         input_text: inputText,
-        reference_text: referenceText
-      })
+        reference_text: referenceText,
+      }),
     });
 
     if (!response.ok) {
@@ -27,8 +26,9 @@ document.getElementById("validateButton").addEventListener("click", async () => 
 
     const data = await response.json();
     resultDiv.innerHTML = `
-      <p><strong>Similarity:</strong> ${data.similarity.toFixed(4)}</p>
-      <p><strong>Is Match:</strong> ${data.is_match ? "✅ Yes" : "❌ No"}</p>
+      <p><strong>Input:</strong> ${data.input}</p>
+      <p><strong>Reference:</strong> ${data.reference}</p>
+      <p><strong>Match:</strong> ${data.match ? "✅ Yes" : "❌ No"}</p>
     `;
   } catch (error) {
     resultDiv.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
