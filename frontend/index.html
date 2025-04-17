@@ -1,1 +1,35 @@
-<!DOCTYPE html><html><head><title>Semantic Validator</title></head><body><div id='app'></div><script src='app.js'></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Semantic Validation API</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Semantic Validator</h1>
+
+    <form id="validation-form">
+      <label for="input_text">Input Text:</label>
+      <textarea id="input_text" name="input_text" required></textarea>
+
+      <label for="reference_text">Reference Text:</label>
+      <textarea id="reference_text" name="reference_text" required></textarea>
+
+      <button type="submit">Validate</button>
+    </form>
+
+    <div id="result" class="result-area">
+      <p><strong>Similarity:</strong> <span id="similarity">-</span></p>
+      <p><strong>Is Match:</strong> <span id="is_match">-</span></p>
+    </div>
+
+    <footer>
+      <p>© Augusto Ochoa — <a href="https://github.com/ochoaughini" target="_blank">GitHub</a> · <a href="https://www.linkedin.com/in/augusto-ochoa" target="_blank">LinkedIn</a></p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
