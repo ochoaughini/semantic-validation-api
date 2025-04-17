@@ -5,12 +5,8 @@ services:
     plan: starter
     region: oregon
     healthCheckPath: /health
-    rootDirectory: /opt/render/project/src
-    buildCommand: |
-      cp -r . /opt/render/project/src/
-      cd /opt/render/project/src
-      docker build -t semantic-validation-api .
-    startCommand: docker run -p $PORT:8080 semantic-validation-api
     envVars:
       - key: PORT
         value: 8080
+    buildCommand: docker build -t semantic-validation-api .
+    startCommand: docker run -p $PORT:8080 semantic-validation-api
