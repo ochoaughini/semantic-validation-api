@@ -13,14 +13,13 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://semantic-validation-api.vercel.app",        # Production
-        "https://semantic-validation-api-dev.vercel.app",    # Development
-        "http://localhost:3000",                            # Local frontend development
-        "http://localhost:5000",                            # Alternative local frontend
-        "http://localhost:8080",                            # Local backend
-        "http://127.0.0.1:3000",                           # Local IPv4 frontend
-        "http://127.0.0.1:5000",                           # Alternative local IPv4
-        "http://127.0.0.1:8080",                           # Local IPv4 backend
+        "https://semantic-validation-api.onrender.com",       # Production on Render
+        "http://localhost:3000",                             # Local frontend development
+        "http://localhost:5000",                             # Alternative local frontend
+        "http://localhost:8080",                             # Local backend
+        "http://127.0.0.1:3000",                            # Local IPv4 frontend
+        "http://127.0.0.1:5000",                            # Alternative local IPv4
+        "http://127.0.0.1:8080",                            # Local IPv4 backend
     ],
     allow_credentials=True,
     allow_methods=["POST", "GET"],
