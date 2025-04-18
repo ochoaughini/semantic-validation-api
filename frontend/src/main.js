@@ -4,7 +4,7 @@ import App from './App.vue'
 import Home from './views/Home.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL), // Add base URL support
   routes: [
     {
       path: '/',
