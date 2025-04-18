@@ -26,9 +26,21 @@
         color: #666;
       }
     </style>
+    <script>
+      // Add error tracking
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        console.error('Window Error:', msg, url, lineNo, columnNo, error);
+        return false;
+      };
+    </script>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!-- Loading state -->
+      <div style="text-align: center; padding: 2rem;">
+        Loading application...
+      </div>
+    </div>
     <script type="module" src="/src/main.js"></script>
     <noscript>
       <p style="text-align: center; padding: 2rem;">
