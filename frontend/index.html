@@ -14,12 +14,27 @@
       body {
         margin: 0;
         min-height: 100vh;
+        font-family: Arial, sans-serif;
+      }
+
+      #app:empty::before {
+        content: "Loading application...";
+        display: block;
+        text-align: center;
+        padding: 2rem;
+        font-size: 1.2rem;
+        color: #666;
       }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
+    <noscript>
+      <p style="text-align: center; padding: 2rem;">
+        JavaScript is required to run this application.
+      </p>
+    </noscript>
   </body>
 </html>
 

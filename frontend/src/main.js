@@ -14,7 +14,23 @@ const router = createRouter({
   ]
 })
 
+// Create the app instance
 const app = createApp(App)
+
+// Add error handling
+app.config.errorHandler = (err, vm, info) => {
+  console.error('Vue Error:', err)
+  console.error('Error Info:', info)
+}
+
+// Add router
 app.use(router)
-app.mount('#app')
+
+// Mount with error catching
+try {
+  app.mount('#app')
+  console.log('Vue app mounted successfully')
+} catch (error) {
+  console.error('Failed to mount Vue app:', error)
+}
 
