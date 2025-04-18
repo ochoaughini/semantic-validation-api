@@ -9,6 +9,12 @@ services:
     envVars:
       - key: PORT
         value: 8080
+      - key: FRONTEND_URL
+        value: https://semantic-validation-frontend.onrender.com
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
 
   # Frontend static site
   - type: static
@@ -25,6 +31,8 @@ services:
         headers:
           - key: Cache-Control
             value: no-store
+          - key: Access-Control-Allow-Origin
+            value: https://semantic-validation-api.onrender.com
     envVars:
       - key: VITE_API_URL
         value: https://semantic-validation-api.onrender.com
