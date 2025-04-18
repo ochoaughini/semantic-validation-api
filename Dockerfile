@@ -53,11 +53,11 @@ RUN mkdir -p /app/src/routers /app/src/static
 COPY backend/src/config.yaml /app/src/config.yaml
 COPY backend/src/config.py /app/src/config.py
 COPY backend/src/schemas.py /app/src/schemas.py
-COPY backend/src/semantic_service.py /app/src/semantic_service.py
 COPY backend/src/auth.py /app/src/auth.py
 COPY backend/src/logging_config.py /app/src/logging_config.py
-COPY backend/main.py /app/main.py
+COPY backend/src/main.py /app/src/main.py
 
+# Copy router files
 # Copy router files
 COPY backend/src/routers/ /app/src/routers/
 
@@ -73,7 +73,7 @@ echo "Working directory: $(pwd)"\n\
 echo "Cache directory permissions: $(ls -la /app/.cache)"\n\
 echo "Directory structure:"\n\
 echo "$(ls -la /app/src)"\n\
-exec uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 1\n\
+exec uvicorn src.main:app --host 0.0.0.0 --port ${PORT} --workers 1\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Set permissions for application and cache dirs
