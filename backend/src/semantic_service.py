@@ -6,13 +6,7 @@ from functools import lru_cache
 from sentence_transformers import SentenceTransformer
 
 # Import our configuration and logging
-from .config import (
-    get_medical_abbreviations,
-    get_medical_synonyms,
-    get_threshold_for_module,
-    get_model_for_module,
-    EMBEDDING_MODEL
-)
+from .config import config
 from .logging_config import logger, medical_logger
 
 # Global model cache to avoid reloading models
@@ -77,7 +71,7 @@ def expand_abbreviations(text: str) -> str:
     if not text:
         return ""
         
-    abbreviations = get_medical_abbreviations()
+    abbreviations = config.get_medical_abbreviations()
     if not abbreviations:
         return text
     
@@ -162,7 +156,7 @@ def handle_synonyms(text: str) -> List[str]:
     variations = [text]
     
     # First use the medical synonyms from config (if any)
-    config_synonyms = get_medical_synonyms()
+    config_synonyms = config.get_medical_synonyms()
     if config_synonyms:
         for term, term_synonyms in config_synonyms.items():
             if term.lower() in text.lower():
@@ -187,17 +181,20 @@ def handle_synonyms(text: str) -> List[str]:
 
 def load_model(model_name: str) -> SentenceTransformer:
     """
-    Load and cache the sentence transformer model.
+    Load the specified sentence transformer model.
     
     Args:
         model_name: Name of the model to load
-        
+    
     Returns:
-        Loaded SentenceTransformer model
+        Loaded sentence transformer model
+        
+    Raises:
+        ValueError: If the model cannot be loaded
     """
+    # Check if model is already loaded
     if model_name in _model_cache:
         return _model_cache[model_name]
-    
     try:
         logger.info(f"Loading model: {model_name}")
         start_time = time.time()
@@ -214,11 +211,11 @@ def load_model(model_name: str) -> SentenceTransformer:
             error_type="model_load_error", 
             error_message=error_msg
         )
-        
         # Fall back to default model if available
-        if model_name != EMBEDDING_MODEL:
-            logger.info(f"Falling back to default model: {EMBEDDING_MODEL}")
-            return load_model(EMBEDDING_MODEL)
+        default_model = config.get_model()
+        if model_name != default_model:
+            logger.info(f"Falling back to default model: {default_model}")
+            return load_model(default_model)
         
         raise RuntimeError(f"Failed to load any model: {str(e)}")
 
@@ -305,8 +302,10 @@ def calculate_enhanced_similarity(
         embedding2 = model.encode(text2)
         similarity = calculate_similarity(embedding1, embedding2)
     
-    # Try with variations if similarity is below 0.8
-    if similarity < 0.8:
+    # Try with variations if similarity is below the variation threshold
+    # Default to 0.8 if not defined in config
+    variation_threshold = 0.8  # Default threshold for variation checking
+    if similarity < variation_threshold:
         # Generate variations with medical synonyms
         text1_variations = handle_synonyms(text1)
         text2_variations = handle_synonyms(text2)
@@ -333,6 +332,8 @@ def validate_semantic(
     input_text: str, 
     reference_text: str, 
     module: str,
+    submodule: Optional[str] = None,
+    model_type: Optional[str] = None,
     custom_threshold: Optional[float] = None
 ) -> Dict[str, Any]:
     """
@@ -342,6 +343,8 @@ def validate_semantic(
         input_text: Input text to validate
         reference_text: Reference text to compare against
         module: Medical domain module (AMA, AI-MPN, etc.)
+        submodule: Optional submodule for more specific processing
+        model_type: Optional specific model type to use
         custom_threshold: Optional custom threshold
         
     Returns:
@@ -350,29 +353,17 @@ def validate_semantic(
     start_time = time.time()
     
     try:
-        # Update metrics
-        if module in _module_metrics:
-            _module_metrics[module]["attempts"] += 1
-        else:
-            # Handle case where module doesn't exist in metrics
+        # Update metrics - use get() to handle unknown modules
+        if module not in _module_metrics:
             logger.warning(f"Unknown module: {module}, using default")
             module = "AMA"  # Fallback to default module
-            _module_metrics[module]["attempts"] += 1
+        _module_metrics[module]["attempts"] += 1
         
         # Get appropriate model and threshold
-        model_name = get_model_for_module(module)
+        model_name = config.get_model_for_module(module)
         
-        # Adjust thresholds based on module
-        if custom_threshold is not None:
-            threshold = custom_threshold
-        else:
-            # Use lower thresholds initially until model is fine-tuned
-            if module == "AMA":
-                threshold = 0.65  # Lower threshold for general medical assessment
-            elif module == "AI-MPN":
-                threshold = 0.70  # Slightly higher for physician notes
-            else:
-                threshold = get_threshold_for_module(module)
+        # Set threshold - use custom threshold if provided, otherwise get from config
+        threshold = custom_threshold if custom_threshold is not None else config.get_threshold_for_module(module)
         
         # Normalize texts according to domain
         normalized_input = normalize_medical_text(input_text, module)
@@ -517,12 +508,11 @@ def get_quality_metrics() -> Dict[str, Any]:
     
     return metrics
 
-
-# Initialize models on module import
+# Try to load the default model on startup
 try:
-    logger.info(f"Preloading default model: {EMBEDDING_MODEL}")
-    load_model(EMBEDDING_MODEL)
-    logger.info("Semantic service initialized successfully")
+    default_model = config.get_model()
+    logger.info(f"Preloading default model: {default_model}")
+    load_model(default_model)
 except Exception as e:
-    logger.error(f"Error initializing semantic service: {str(e)}")
-
+    # Non-fatal error, log and continue (model will be loaded on first request)
+    logger.warning(f"Could not preload model: {str(e)}")

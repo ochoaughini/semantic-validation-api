@@ -4,7 +4,7 @@ import time
 from typing import Dict, Any, Optional
 from loguru import logger
 
-from .config import LOG_LEVEL
+from .config import config
 
 # Remove default logger
 logger.remove()
@@ -12,7 +12,7 @@ logger.remove()
 # Configure structured console logging
 logger.add(
     sink=sys.stdout,
-    level=LOG_LEVEL,
+    level=config.LOG_LEVEL,
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
     colorize=True,
     backtrace=True,
@@ -20,11 +20,11 @@ logger.add(
 )
 
 # Add file logging for production
-if LOG_LEVEL != "DEBUG":
+if config.LOG_LEVEL != "DEBUG":
     logger.add(
         "logs/api.log",
         rotation="500 MB",
-        level=LOG_LEVEL,
+        level=config.LOG_LEVEL,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
         serialize=True,  # JSON format for structured logging
         compression="zip",
@@ -81,8 +81,8 @@ class MedicalDomainLogger:
         logger.info(f"MEDICAL_VALIDATION | {json.dumps(log_entry)}")
         
         # Log detailed information for debugging
-        if LOG_LEVEL == "DEBUG":
-            logger.debug(f"Full validation context: {json.dumps(log_entry, indent=2)}")
+        if config.LOG_LEVEL == "DEBUG":
+            logger.debug(f"Validation details: {json.dumps(log_entry, indent=2)}")
     
     def log_error(self, module: str, error_type: str, error_message: str, details: Optional[Dict[str, Any]] = None):
         """Log an error during medical validation."""
@@ -101,7 +101,7 @@ class MedicalDomainLogger:
         return {
             "validation_count": self.validation_count,
             "uptime_seconds": round(time.time() - self.start_time),
-            "log_level": LOG_LEVEL
+            "log_level": config.LOG_LEVEL
         }
 
 # Create a singleton instance of the medical domain logger

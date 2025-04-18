@@ -10,6 +10,10 @@ from slowapi.util import get_remote_address
 from ..auth import get_api_key
 from ..semantic_service import get_quality_metrics
 from ..logging_config import logger, medical_logger
+from ..config import config
+
+# Define version locally to avoid circular imports
+METRICS_API_VERSION = "1.1.0"  # Keep in sync with main.py's API_VERSION
 
 # Create router with prefix and tags
 router = APIRouter(
@@ -211,7 +215,7 @@ async def get_health_metrics(req: Request):
                 "memory_usage": system_resources["memory_usage"]["percent"],
                 "response_time_ms": round(response_time, 2)
             },
-            "version": "1.0.0"
+            "version": METRICS_API_VERSION
         }
     
     except Exception as e:
