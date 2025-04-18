@@ -589,9 +589,9 @@ def get_quality_metrics() -> Dict[str, Any]:
             "models_loaded": get_loaded_model_count(),
             "uptime_stats": medical_logger.get_stats()
         }
+    }
     
     return metrics
-
 # Initialize semantic validation service
 logger.info("=" * 60)
 logger.info("🔬 Semantic Validation Service Initialization")
