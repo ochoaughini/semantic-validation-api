@@ -7,22 +7,89 @@
         <p>A powerful API for semantic validation and analysis.</p>
       </section>
       
-      <section class="features">
-        <h3>Features</h3>
-        <ul>
-          <li>Semantic Text Analysis</li>
-          <li>Medical Terminology Validation</li>
-          <li>Content Similarity Checking</li>
-          <li>Advanced NLP Processing</li>
-        </ul>
+      <section class="demo" v-if="isReady">
+        <h3>Try It Out</h3>
+        <div class="input-group">
+          <textarea 
+            v-model="inputText" 
+            placeholder="Enter your text here..."
+            rows="4"
+            class="form-input"
+          ></textarea>
+          <textarea 
+            v-model="referenceText" 
+            placeholder="Enter reference text here..."
+            rows="4"
+            class="form-input"
+          ></textarea>
+          <button 
+            @click="validateText" 
+            :disabled="!canValidate"
+            class="validate-btn"
+          >
+            Validate Text
+          </button>
+        </div>
+        
+        <div v-if="result" class="result">
+          <h4>Results:</h4>
+          <p>Similarity Score: {{ result.similarity.toFixed(2) }}</p>
+          <p>Match: {{ result.match ? 'Yes' : 'No' }}</p>
+          <p>Processing Time: {{ result.processing_time_ms.toFixed(2) }}ms</p>
+        </div>
       </section>
     </div>
   </div>
 </template>
 
 <script>
+import { ref, computed } from 'vue'
+import api from '../api'
+
 export default {
-  name: 'Home'
+  name: 'Home',
+  async setup() {
+    const isReady = ref(false)
+    const inputText = ref('')
+    const referenceText = ref('')
+    const result = ref(null)
+    
+    // Simulate API check
+    try {
+      await api.get('/health')
+      isReady.value = true
+    } catch (error) {
+      console.error('API Health check failed:', error)
+      isReady.value = true // Set to true anyway for demo
+    }
+
+    const canValidate = computed(() => 
+      inputText.value.trim() && referenceText.value.trim()
+    )
+
+    const validateText = async () => {
+      try {
+        const response = await api.post('/api/validate', {
+          input_text: inputText.value,
+          reference_text: referenceText.value,
+          module: "ICSE"
+        })
+        result.value = response.data
+      } catch (error) {
+        console.error('Validation error:', error)
+        alert('Error validating text. Please try again.')
+      }
+    }
+
+    return {
+      isReady,
+      inputText,
+      referenceText,
+      result,
+      canValidate,
+      validateText
+    }
+  }
 }
 </script>
 
@@ -58,33 +125,65 @@ h1 {
   font-size: 1.1rem;
 }
 
-.features {
-  text-align: left;
+.demo {
+  padding: 2rem;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.validate-btn {
+  background-color: #42b983;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.validate-btn:hover:not(:disabled) {
+  background-color: #3aa876;
+}
+
+.validate-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.result {
+  margin-top: 2rem;
   padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  text-align: left;
 }
 
-.features h3 {
+.result h4 {
   color: #2c3e50;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
-.features ul {
-  list-style: none;
-  padding: 0;
-}
-
-.features li {
-  padding: 0.5rem 0;
+.result p {
+  margin: 0.5rem 0;
   color: #666;
-  position: relative;
-  padding-left: 1.5rem;
-}
-
-.features li::before {
-  content: "✓";
-  color: #42b983;
-  position: absolute;
-  left: 0;
 }
 </style>
 

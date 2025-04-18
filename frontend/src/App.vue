@@ -6,14 +6,26 @@
       </nav>
     </header>
     <main>
-      <router-view></router-view>
+      <Suspense>
+        <template #default>
+          <router-view></router-view>
+        </template>
+        <template #fallback>
+          <loading-spinner />
+        </template>
+      </Suspense>
     </main>
   </div>
 </template>
 
 <script>
+import LoadingSpinner from './components/LoadingSpinner.vue'
+
 export default {
-  name: 'App'
+  name: 'App',
+  components: {
+    LoadingSpinner
+  }
 }
 </script>
 
