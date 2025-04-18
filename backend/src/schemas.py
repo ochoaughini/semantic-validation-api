@@ -82,13 +82,7 @@ class MetricsResponse(BaseModel):
     overall: Dict[str, Any] = Field(..., description="Overall metrics")
 
 
-class ErrorDetail(BaseModel):
-    """
-    Model for error details.
-    """
-    msg: str = Field(..., description="Error message")
-    loc: Optional[List[str]] = Field(None, description="Error location")
-    type: Optional[str] = Field(None, description="Error type")
+class HealthCheckResponse(BaseModel):
     """
     Model for health check response.
     """
