@@ -6,9 +6,23 @@ from pydantic import BaseModel, Field, validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+# Medical patterns compiled for performance
+DRUG_FORMS = [
+    "tablet", "capsule", "injection", "solution", "suspension", "pill",
+    "cream", "ointment", "patch", "inhaler", "spray", "drops"
+]
+MEDICAL_PATTERNS = {
+    'dosages': re.compile(r'\b\d+\.?\d*\s*(mg|g|ml|l|mmol|µg|mcg|IU|mEq)\b'),
+    'timing': re.compile(r'\b(bid|tid|qid|daily|weekly|monthly|hourly|prn|as needed)\b'),
+    'duration': re.compile(r'\b(\d+\s*(day|week|month|year)s?)\b'),
+    'route': re.compile(r'\b(oral|iv|intravenous|im|intramuscular|sc|subcutaneous|topical|inhaled)\b', re.IGNORECASE),
+    'drug_forms': re.compile(r'\b(' + '|'.join(DRUG_FORMS) + r')\b', re.IGNORECASE)
+}
+
 from ..auth import get_api_key
 from ..semantic_service import validate_semantic
 from ..logging_config import logger, medical_logger
+from ..config import config
 
 # Create router with prefix and tags
 router = APIRouter(
@@ -21,21 +35,45 @@ router = APIRouter(
 limiter = Limiter(key_func=get_remote_address)
 
 # --- Models --- #
+class DrugInteraction(BaseModel):
+    """Model for drug interaction details."""
+    drug1: str = Field(..., description="First drug in interaction")
+    drug2: str = Field(..., description="Second drug in interaction")
+    type: str = Field(..., description="Type of interaction")
+
+
+class TreatmentElements(BaseModel):
+    """Model for extracted treatment elements."""
+    dosages: List[str] = Field(default_factory=list, description="Dosage measurements")
+    timing: List[str] = Field(default_factory=list, description="Timing instructions")
+    duration: List[str] = Field(default_factory=list, description="Duration specifications")
+    procedures: List[str] = Field(default_factory=list, description="Medical procedures")
+    route: List[str] = Field(default_factory=list, description="Routes of administration")
+    drug_forms: List[str] = Field(default_factory=list, description="Drug formulations")
+    interactions: List[DrugInteraction] = Field(default_factory=list, description="Potential drug interactions")
+
+
+class TreatmentElementsContext(BaseModel):
+    """Model for treatment elements context."""
+    input: TreatmentElements = Field(..., description="Elements from input text")
+    reference: TreatmentElements = Field(..., description="Elements from reference text")
+
 
 class TreatmentRequest(BaseModel):
     """Request model for treatment validation."""
-    input_text: str = Field(..., min_length=1, max_length=3000, 
-                           description="Treatment description to validate")
-    reference_text: str = Field(..., min_length=1, max_length=3000, 
-                               description="Reference treatment text to compare against")
-    module: str = Field(..., description="Validation module: TDBE or SMCC")
+    input_text: str = Field(..., min_length=1, max_length=2000, 
+                          description="Treatment text to validate")
+    reference_text: str = Field(..., min_length=1, max_length=2000, 
+                              description="Reference treatment text to compare against")
+    module: str = Field(..., description="Validation module (TDBE or SMCC)")
+    submodule: Optional[str] = Field(None, description="Optional specific submodule")
     custom_threshold: Optional[float] = Field(None, ge=0.0, le=1.0, 
-                                             description="Optional custom threshold (0-1)")
+                                            description="Optional custom threshold (0-1)")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Optional metadata")
-    
     @validator("module")
     def validate_module(cls, v):
         """Ensure module is a valid treatment module."""
+        v = v.upper()  # Normalize input
         if v not in ["TDBE", "SMCC"]:
             raise ValueError(f"Invalid module for treatment. Must be 'TDBE' or 'SMCC', got '{v}'")
         return v
@@ -65,32 +103,98 @@ class TreatmentResponse(BaseModel):
     module: str = Field(..., description="Module used for validation")
     model: str = Field(..., description="Model used for validation")
     processing_time_ms: float = Field(..., description="Processing time in milliseconds")
-    treatment_elements: Optional[Dict[str, bool]] = Field(None, description="Treatment elements present")
+    treatment_elements: Optional[TreatmentElementsContext] = Field(
+        None, 
+        description="Extracted treatment elements from both texts"
+    )
 
 # --- Helper Functions --- #
 
-def extract_treatment_elements(text: str) -> Dict[str, bool]:
+def check_drug_interactions(text: str) -> List[Dict[str, str]]:
     """
-    Extract key treatment elements from the text.
+    Check for potential drug interactions in treatment text.
     
     Args:
         text: Treatment text to analyze
         
     Returns:
-        Dictionary of treatment elements and whether they are present
+        List of potential drug interactions
     """
-    text = text.lower()
+    interactions = []
     
-    # Check for key treatment elements
+    # Get medical terms from config
+    medical_terms = config.get_medical_abbreviations()
+    if not medical_terms:
+        return interactions
+        
+    # Look for co-occurring medications
+    drugs = set()
+    for term, expansion in medical_terms.items():
+        if "drug" in term.lower() or "medication" in term.lower():
+            if re.search(r'\b' + re.escape(term) + r'\b', text, re.IGNORECASE):
+                drugs.add(term)
+                
+    # If multiple drugs found, flag for potential interaction
+    if len(drugs) > 1:
+        drug_list = sorted(list(drugs))
+        for i, drug1 in enumerate(drug_list):
+            for drug2 in drug_list[i+1:]:
+                interactions.append({
+                    "drug1": drug1,
+                    "drug2": drug2,
+                    "type": "co_administration"
+                })
+                
+    return interactions
+
+
+def extract_treatment_elements(text: str) -> Dict[str, List[str]]:
+    """
+    Extract structured information from treatment text.
+    
+    Args:
+        text: Treatment text to analyze
+        
+    Returns:
+        Dictionary of treatment elements extracted from text
+    """
     elements = {
-        "dosage": bool(re.search(r'\b\d+\.?\d*\s*(mg|g|ml|mcg|µg|units)\b', text)),
-        "frequency": bool(re.search(r'\b(daily|weekly|monthly|hourly|once|twice|bid|tid|qid|prn)\b', text)),
-        "route": bool(re.search(r'\b(oral|iv|intravenous|im|intramuscular|sc|subcutaneous|topical|inhaled)\b', text)),
-        "duration": bool(re.search(r'\b(\d+\s*(day|week|month|hour|minute|year|min)s?)\b', text)),
-        "drug_name": bool(re.search(r'\b(tablet|capsule|injection|solution|suspension|pill)\b', text))
+        "dosages": [],
+        "timing": [],
+        "duration": [],
+        "procedures": [],
+        "route": [],
+        "drug_forms": [],
+        "interactions": []  # Add interactions field
     }
     
-    return elements
+    try:
+        # Extract using compiled patterns
+        for key, pattern in MEDICAL_PATTERNS.items():
+            elements[key] = [m.group() for m in pattern.finditer(text)]
+            
+        # Extract procedures using medical terms
+        medical_terms = config.get_medical_abbreviations()
+        if medical_terms:
+            procedure_terms = [
+                term for term, _ in medical_terms.items() 
+                if any(x in term.lower() for x in ["procedure", "therapy", "treatment"])
+            ]
+            if procedure_terms:
+                procedure_pattern = re.compile(
+                    r'\b(' + '|'.join(re.escape(p) for p in procedure_terms) + r')\b',
+                    re.IGNORECASE
+                )
+                elements["procedures"] = [m.group() for m in procedure_pattern.finditer(text)]
+        
+        # Check for drug interactions
+        elements["interactions"] = check_drug_interactions(text)
+            
+        return elements
+    except Exception as e:
+        logger.error(f"Error extracting treatment elements: {str(e)}")
+        return elements  # Return empty elements on error
+
 
 # --- Routes --- #
 
@@ -107,60 +211,38 @@ async def validate_treatment(request: TreatmentRequest, req: Request):
         start_time = time.time()
         logger.info(f"Treatment validation request: module={request.module}")
         
-        # Treatment-specific preprocessing and validation
-        if request.module == "TDBE":
-            # For treatment description, we check for essential elements first
-            treatment_elements = extract_treatment_elements(request.input_text)
-            
-            # Validate semantics
-            result = validate_semantic(
-                request.input_text,
-                request.reference_text,
-                request.module,
-                request.custom_threshold
-            )
-            
-            # Add treatment elements to the response
-            result["treatment_elements"] = treatment_elements
-            
-        elif request.module == "SMCC":
-            # For synthesized medical care, we handle longer texts
-            logger.info("Processing SMCC validation for synthesized medical care")
-            
-            # Medical care comparison requires more context
-            result = validate_semantic(
-                request.input_text,
-                request.reference_text,
-                request.module,
-                request.custom_threshold
-            )
-            
-            # No specialized elements for SMCC
-            result["treatment_elements"] = None
-            
-        else:
-            # This should never happen due to pydantic validation
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid treatment module: {request.module}"
-            )
-            
-        # Calculate total processing time
+        # Extract treatment elements
+        input_elements = extract_treatment_elements(request.input_text)
+        reference_elements = extract_treatment_elements(request.reference_text)
+        
+        # Use semantic validation
+        result = validate_semantic(
+            request.input_text,
+            request.reference_text,
+            module=request.module,
+            submodule=request.submodule,
+            custom_threshold=request.custom_threshold
+        )
+        
+        # Calculate processing time
         processing_time = (time.time() - start_time) * 1000
-            
+        
         # Construct response
-        return {
-            "input": request.input_text,
-            "reference": request.reference_text,
-            "similarity": result["similarity"],
-            "match": result["match"],
-            "threshold": result["threshold"],
-            "module": request.module,
-            "model": result["model"],
-            "processing_time_ms": processing_time,
-            "treatment_elements": result["treatment_elements"]
-        }
-    
+        return TreatmentResponse(
+            input=request.input_text,
+            reference=request.reference_text,
+            similarity=result["similarity"],
+            match=result["match"],
+            threshold=result["threshold"],
+            module=request.module,
+            model=result["model"],
+            processing_time_ms=processing_time,
+            treatment_elements=TreatmentElementsContext(
+                input=TreatmentElements(**input_elements),
+                reference=TreatmentElements(**reference_elements)
+            )
+        )
+        
     except ValueError as ve:
         # Handle validation errors
         logger.warning(f"Treatment validation error: {str(ve)}")
@@ -168,15 +250,17 @@ async def validate_treatment(request: TreatmentRequest, req: Request):
             status_code=400,
             detail=str(ve)
         )
-    
     except Exception as e:
         # Log unexpected errors
-        logger.error(f"Unexpected error in treatment validation: {str(e)}", exc_info=True)
+        logger.error(f"Treatment validation error: {str(e)}", exc_info=True)
         medical_logger.log_error(
             module=request.module if hasattr(request, "module") else "unknown",
             error_type="treatment_validation_error",
             error_message=str(e),
-            details={"input_length": len(request.input_text) if hasattr(request, "input_text") else 0}
+            details={
+                "input_length": len(request.input_text) if hasattr(request, "input_text") else 0,
+                "submodule": request.submodule if hasattr(request, "submodule") else None
+            }
         )
         raise HTTPException(
             status_code=500,
