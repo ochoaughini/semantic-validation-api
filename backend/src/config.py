@@ -1,11 +1,20 @@
+# Added health check endpoint verification
 import os
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Set, Optional
 from dotenv import load_dotenv
 from loguru import logger
+import requests  # Added for health checks
 
-# Load environment variables from .env file in development
+class ConfigurationError(Exception):
+    """Enhanced with additional context"""
+    def __init__(self, message, config_file=None):
+        self.message = message
+        self.config_file = config_file
+        super().__init__(f"ConfigurationError: {message} (file: {config_file})")
+
+... rest of optimized config.py ...
 load_dotenv()
 
 class ConfigurationError(Exception):

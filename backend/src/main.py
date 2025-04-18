@@ -29,13 +29,27 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS configuration - Comprehensive list of allowed origins
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.ALLOWED_ORIGINS,
+    allow_origins=[
+        "https://semantic-validation-frontend.onrender.com",
+        *config.ALLOWED_ORIGINS
+    ],
     allow_credentials=True,
-    allow_methods=["POST", "GET", "OPTIONS"],                # Include OPTIONS for preflight
-    allow_headers=["Content-Type", "Authorization", "Origin", "Accept", "X-API-Key"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Origin",
+        "Accept",
+        "X-API-Key"
+    ],
+    expose_headers=[
+        "Content-Length",
+        "Content-Type"
+    ],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # Optional API key authentication
