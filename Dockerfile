@@ -56,6 +56,7 @@ COPY backend/src/schemas.py /app/src/schemas.py
 COPY backend/src/auth.py /app/src/auth.py
 COPY backend/src/logging_config.py /app/src/logging_config.py
 COPY backend/src/main.py /app/src/main.py
+COPY backend/src/semantic_service.py /app/src/semantic_service.py
 
 # Copy router files
 # Copy router files

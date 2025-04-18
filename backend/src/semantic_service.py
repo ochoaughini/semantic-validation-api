@@ -18,8 +18,8 @@ except ImportError:
 from sentence_transformers import SentenceTransformer
 
 # Import our configuration and logging
-from .config import config
-from .logging_config import logger, medical_logger
+from src.config import config
+from src.logging_config import logger, medical_logger
 
 # Type aliases for clarity
 EmbeddingVector = NDArray[np.float32]
@@ -553,7 +553,6 @@ def get_quality_metrics() -> Dict[str, Any]:
         Dictionary of quality metrics
     """
     # Calculate overall metrics
-    # Calculate overall metrics
     total_attempts = sum(m["attempts"] for m in _module_metrics.values())
     
     # Calculate error rate only once
@@ -584,22 +583,21 @@ def get_quality_metrics() -> Dict[str, Any]:
             }
         },
         "overall": {
-        "overall": {
             "total_validations": total_attempts,
             "error_rate": round(error_rate, 3),
             "success_rate": round(1.0 - error_rate, 3),
             "models_loaded": get_loaded_model_count(),
             "uptime_stats": medical_logger.get_stats()
-    }
+        }
     
     return metrics
 
 # Initialize semantic validation service
-logger.info("=" * 50)
-logger.info("Initializing Semantic Validation Service")
-logger.info("-" * 50)
-logger.info(f"Default model: {DEFAULT_MODEL}")
-logger.info(f"Variation threshold: {VARIATION_THRESHOLD}")
+logger.info("=" * 60)
+logger.info("🔬 Semantic Validation Service Initialization")
+logger.info("=" * 60)
+logger.info(f"📚 Default model: {DEFAULT_MODEL}")
+logger.info(f"🎯 Variation threshold: {VARIATION_THRESHOLD}")
 try:
     load_model(DEFAULT_MODEL)
     logger.info(f"✓ Model preloaded successfully")

@@ -8,9 +8,9 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 # Import our components
-from .config import config
-from .semantic_service import semantic_service
-from .schemas import (
+from src.config import config
+from src.semantic_service import semantic_service
+from src.schemas import (
     ValidationRequest, ValidationResponse, ErrorResponse, HealthResponse,
     ModuleType, SubmoduleType
 )
@@ -32,24 +32,7 @@ app = FastAPI(
 # CORS configuration - Comprehensive list of allowed origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        # Render domains
-        "https://semantic-validation-api.onrender.com",       # Backend on Render
-        "https://semantic-validation-app.onrender.com",       # Possible frontend on Render
-        "https://semantic-validation.onrender.com",           # Alternative frontend name
-        "https://*.onrender.com",                             # All Render subdomains
-        
-        # Local development
-        "http://localhost:3000",                             # Local frontend development
-        "http://localhost:5000",                             # Alternative local frontend
-        "http://localhost:8080",                             # Local backend
-        "http://127.0.0.1:3000",                            # Local IPv4 frontend
-        "http://127.0.0.1:5000",                            # Alternative local IPv4
-        "http://127.0.0.1:8080",                            # Local IPv4 backend
-        
-        # Allow frontend to be served from any domain during testing
-        "*",                                                # Allow all origins temporarily
-    ],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],                # Include OPTIONS for preflight
     allow_headers=["Content-Type", "Authorization", "Origin", "Accept", "X-API-Key"],
@@ -60,9 +43,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 # Set of valid API keys (for basic auth)
 # In production, this should be stored securely
-API_KEYS = {
-    os.getenv("API_KEY", "dev-api-key-2025")
-}
+API_KEYS = config.VALID_API_KEYS
 
 async def get_api_key(
     api_key: str = Security(api_key_header),
@@ -178,11 +159,21 @@ async def validate_humanization(
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Check if the service is healthy and return status information."""
-    return HealthResponse(
-        status="healthy",
-        version=API_VERSION,
-        models_loaded=len(semantic_service._model_cache)
-    )
+    try:
+        # Get model info through semantic_service method
+        models_loaded = semantic_service.get_loaded_model_count()
+        return HealthResponse(
+            status="healthy",
+            version=API_VERSION,
+            models_loaded=models_loaded
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return HealthResponse(
+            status="unhealthy",
+            version=API_VERSION,
+            models_loaded=0
+        )
 
 
 # Root endpoint for basic information
@@ -242,10 +233,15 @@ async def startup_event():
     logger.info(f"Using model: {config.get_model()}")
     
     # Log configured thresholds
-    thresholds = config.config.get("thresholds", {})
-    logger.info(f"Configured thresholds: {thresholds}")
+    for module, threshold in config.THRESHOLDS.items():
+        logger.info(f"Threshold for {module}: {config.get_threshold_for_module(module)}")
     
-    # Log environment
+    # Log environment and security settings
     environment = os.getenv("ENVIRONMENT", "production")
     logger.info(f"Running in {environment} environment")
+    logger.info(f"CORS origins configured: {len(config.ALLOWED_ORIGINS)}")
+    
+    # Log API security status
+    auth_enabled = os.getenv("ENVIRONMENT") != "development"
+    logger.info(f"API authentication {'enabled' if auth_enabled else 'disabled in development mode'}")
 
