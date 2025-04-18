@@ -8,9 +8,9 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 # Import our components
-from config import config
-import semantic_service
-from schemas import (
+from src.config import config
+from src.semantic_service import semantic_service
+from src.schemas import (
     ValidationRequest, ValidationResponse, ErrorResponse, HealthResponse,
     ModuleType, SubmoduleType
 )
