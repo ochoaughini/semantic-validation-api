@@ -1,22 +1,57 @@
+"""
+Semantic Validation Service
+
+This module provides core functionality for semantic text validation in medical contexts.
+It handles medical terminology, abbreviations, and domain-specific text processing.
+"""
+
 import re
 import time
 import numpy as np
-from typing import Dict, Tuple, List, Any, Optional, Set
+from typing import Dict, Tuple, List, Any, Optional, Set, Union
 from functools import lru_cache
+try:
+    from numpy.typing import NDArray
+except ImportError:
+    # Fallback for older numpy versions
+    from typing import Any as NDArray
 from sentence_transformers import SentenceTransformer
 
 # Import our configuration and logging
 from .config import config
 from .logging_config import logger, medical_logger
 
+# Type aliases for clarity
+EmbeddingVector = NDArray[np.float32]
+ModelCache = Dict[str, SentenceTransformer]
+EmbeddingCache = Dict[str, EmbeddingVector]
+MetricsData = Dict[str, Dict[str, Union[int, float]]]
+
+# Custom exceptions
+class ValidationError(Exception):
+    """Base exception for validation errors."""
+    pass
+
+class ModelLoadError(ValidationError):
+    """Raised when a model fails to load."""
+    pass
+
+class EmbeddingError(ValidationError):
+    """Raised when embedding generation fails."""
+    pass
+
 # Global model cache to avoid reloading models
-_model_cache: Dict[str, SentenceTransformer] = {}
+_model_cache: ModelCache = {}
+
+# Module constants from config
+VARIATION_THRESHOLD = config.VARIATION_THRESHOLD
+DEFAULT_MODEL = config.get_model()
 
 # Cache for reference embeddings
-_embedding_cache: Dict[str, np.ndarray] = {}
+_embedding_cache: EmbeddingCache = {}
 
 # Quality metrics tracking
-_module_metrics = {
+_module_metrics: MetricsData = {
     "AMA": {"attempts": 0, "successful": 0, "errors": 0, "avg_time_ms": 0},
     "AI-MPN": {"attempts": 0, "successful": 0, "errors": 0, "avg_time_ms": 0},
     "TDBE": {"attempts": 0, "successful": 0, "errors": 0, "avg_time_ms": 0},
@@ -31,8 +66,9 @@ _medical_patterns = {
     "timing": r'\b(bid|tid|qid|daily|weekly|monthly|hourly|prn|as needed)\b'
 }
 
-# Medical term synonyms for better matching
-_medical_synonyms = {
+# Load medical synonyms from config or use defaults
+_medical_synonyms = config.get_medical_synonyms() or {
+    # Default fallback synonyms if config is empty
     # Temperature terms
     "fever": ["elevated temperature", "pyrexia", "hyperthermia", "febrile", "high temperature"],
     "temperature": ["temp", "body temperature", "fever"],
@@ -46,15 +82,22 @@ _medical_synonyms = {
     # Infection terms
     "bacteria": ["bacterial", "bacteriological"],
     "infection": ["infectious process", "inflammatory process", "sepsis"],
-    "culture": ["bacterial culture", "microbiological test", "bacteriological test"],
     
     # General medical terms
-    "presents with": ["exhibits", "shows", "displays", "demonstrates", "manifests"],
-    "indicative": ["suggestive", "consistent with", "compatible with", "characteristic of"],
+    "presents with": ["exhibits", "shows", "displays", "demonstrates"],
     "positive": ["reactive", "detected", "present"],
     "negative": ["non-reactive", "not detected", "absent"]
 }
 
+
+# --- Helper Functions --- #
+
+def _validate_module(module: str) -> str:
+    """Validate and normalize module name."""
+    if module not in _module_metrics:
+        logger.warning(f"Unknown module: {module}, falling back to default (AMA)")
+        return "AMA"
+    return module
 
 # --- Medical Term Handling --- #
 
@@ -185,40 +228,46 @@ def load_model(model_name: str) -> SentenceTransformer:
     
     Args:
         model_name: Name of the model to load
-    
+        
     Returns:
-        Loaded sentence transformer model
+        Loaded SentenceTransformer model
         
     Raises:
-        ValueError: If the model cannot be loaded
+        RuntimeError: If both requested model and default model fail to load
+        
+    Note:
+        If the requested model fails to load, will attempt to fall back
+        to the default model (unless already trying the default model).
     """
-    # Check if model is already loaded
-    if model_name in _model_cache:
-        return _model_cache[model_name]
     try:
-        logger.info(f"Loading model: {model_name}")
+        # First try requested model (cached)
+        if model_name in _model_cache:
+            return _model_cache[model_name]
+
+        # Load model if not in cache
+        logger.info(f"⌛ Loading model: {model_name}")
         start_time = time.time()
         model = SentenceTransformer(model_name)
         _model_cache[model_name] = model
         load_time = time.time() - start_time
-        logger.info(f"Model {model_name} loaded in {load_time:.2f}s")
+        logger.info(f"✓ Model {model_name} loaded successfully in {load_time:.2f}s")
         return model
     except Exception as e:
         error_msg = f"Failed to load model {model_name}: {str(e)}"
         logger.error(error_msg)
         medical_logger.log_error(
             module="system", 
-            error_type="model_load_error", 
+            error_type="model_load_error",
             error_message=error_msg
         )
-        # Fall back to default model if available
-        default_model = config.get_model()
-        if model_name != default_model:
-            logger.info(f"Falling back to default model: {default_model}")
-            return load_model(default_model)
         
-        raise RuntimeError(f"Failed to load any model: {str(e)}")
-
+        # Fall back to default model only if this wasn't already the default
+        if model_name != DEFAULT_MODEL:
+            logger.info(f"Falling back to default model: {DEFAULT_MODEL}")
+            return load_model(DEFAULT_MODEL)
+        
+        # If we're already trying the default model, raise a more specific error
+        raise ModelLoadError(f"Failed to load default model: {str(e)}") from e
 
 # --- Embedding and Similarity Calculation --- #
 
@@ -243,10 +292,13 @@ def get_embeddings(texts: List[str], model_name: str) -> List[np.ndarray]:
             module="system", 
             error_type="embedding_error", 
             error_message=error_msg,
-            details={"model": model_name, "text_count": len(texts)}
+            details={
+                "model": model_name, 
+                "text_count": len(texts), 
+                "original_error": str(e)
+            }
         )
-        raise
-
+        raise EmbeddingError(f"Error generating embeddings with model {model_name}: {str(e)}") from e
 
 def calculate_similarity(embedding1: np.ndarray, embedding2: np.ndarray) -> float:
     """
@@ -293,6 +345,14 @@ def calculate_enhanced_similarity(
     Returns:
         Best similarity score found
     """
+    # Validate inputs
+    if not text1 or not text2:
+        raise ValueError("Both texts must be provided")
+    if model is None:
+        raise ValueError("Model must be provided")
+    if (embedding1 is not None and embedding2 is None) or (embedding1 is None and embedding2 is not None):
+        raise ValueError("Both embeddings must be provided if one is")
+
     # Calculate base similarity if embeddings provided
     if embedding1 is not None and embedding2 is not None:
         similarity = calculate_similarity(embedding1, embedding2)
@@ -304,8 +364,8 @@ def calculate_enhanced_similarity(
     
     # Try with variations if similarity is below the variation threshold
     # Default to 0.8 if not defined in config
-    variation_threshold = 0.8  # Default threshold for variation checking
-    if similarity < variation_threshold:
+    # Use module-level constant for performance
+    if similarity < VARIATION_THRESHOLD:
         # Generate variations with medical synonyms
         text1_variations = handle_synonyms(text1)
         text2_variations = handle_synonyms(text2)
@@ -350,13 +410,12 @@ def validate_semantic(
     Returns:
         Dictionary with validation results
     """
-    start_time = time.time()
+    # Validate and normalize module first
+    module = _validate_module(module)
     
+    start_time = time.time()
     try:
-        # Update metrics - use get() to handle unknown modules
-        if module not in _module_metrics:
-            logger.warning(f"Unknown module: {module}, using default")
-            module = "AMA"  # Fallback to default module
+        # Track attempt
         _module_metrics[module]["attempts"] += 1
         
         # Get appropriate model and threshold
@@ -381,20 +440,22 @@ def validate_semantic(
             normalized_input, 
             normalized_reference, 
             model,
-            input_embedding, 
-            reference_embedding
+            embedding1=input_embedding, 
+            embedding2=reference_embedding
         )
-        
         # Determine if match based on threshold
         match = similarity >= threshold
         
         # Calculate processing time
         duration_ms = (time.time() - start_time) * 1000
-        
         # Update module metrics
         _module_metrics[module]["successful"] += 1
+        
+        # Calculate new average processing time
+        current_avg = _module_metrics[module]["avg_time_ms"]
+        previous_count = _module_metrics[module]["successful"] - 1
         _module_metrics[module]["avg_time_ms"] = (
-            (_module_metrics[module]["avg_time_ms"] * (_module_metrics[module]["successful"] - 1) + duration_ms) / 
+            (current_avg * previous_count + duration_ms) / 
             _module_metrics[module]["successful"]
         )
         
@@ -419,28 +480,70 @@ def validate_semantic(
             "processing_time_ms": duration_ms
         }
     
+    except ValidationError as e:
+        # Handle known validation errors
+        _module_metrics[module]["errors"] += 1
+        logger.error(f"Validation error in {module}: {str(e)}")
+        raise
     except Exception as e:
-        # Track error in metrics
+        # Handle unexpected errors
         _module_metrics[module]["errors"] += 1
         
         # Log the error
-        error_msg = f"Validation error for module {module}: {str(e)}"
+        error_msg = f"Unexpected error in {module}: {str(e)}"
         logger.error(error_msg)
         medical_logger.log_error(
             module=module, 
-            error_type="validation_error", 
+            error_type="unexpected_error", 
             error_message=error_msg,
             details={
                 "input_length": len(input_text) if input_text else 0,
-                "reference_length": len(reference_text) if reference_text else 0
+                "reference_length": len(reference_text) if reference_text else 0,
+                "original_error": str(e)
             }
         )
         
         # Re-raise with additional context
-        raise RuntimeError(f"Validation failed: {str(e)}")
+        raise ValidationError(f"Validation failed: {str(e)}") from e
 
 
 # --- Quality Metrics --- #
+
+def _prepare_module_metrics(
+    module: str, 
+    data: Dict[str, Union[int, float]]
+) -> Dict[str, Union[int, float]]:
+    """
+    Prepare metrics for a single module.
+    
+    Args:
+        module: Module identifier
+        data: Raw metrics data
+        
+    Returns:
+        Processed metrics dictionary
+    """
+    return {
+        "accuracy": round(1.0 - (data["errors"] / data["attempts"]) 
+                        if data["attempts"] > 0 else 1.0, 3),
+        "avg_time_ms": round(data["avg_time_ms"], 2),
+        "attempts": data["attempts"],
+        "successful": data["successful"],
+        "errors": data["errors"]
+    }
+
+
+def _calculate_domain_accuracy(modules: List[str]) -> float:
+    """Calculate accuracy for a set of modules."""
+    total_errors = sum(_module_metrics[m]["errors"] for m in modules)
+    total_attempts = sum(_module_metrics[m]["attempts"] for m in modules)
+    return round(1.0 - total_errors / max(1, total_attempts), 3)
+
+
+def get_loaded_model_count() -> int:
+    """Get the number of currently loaded models."""
+    return len(_model_cache)
+
 
 def get_quality_metrics() -> Dict[str, Any]:
     """
@@ -450,13 +553,14 @@ def get_quality_metrics() -> Dict[str, Any]:
         Dictionary of quality metrics
     """
     # Calculate overall metrics
+    # Calculate overall metrics
     total_attempts = sum(m["attempts"] for m in _module_metrics.values())
-    total_errors = sum(m["errors"] for m in _module_metrics.values())
-    total_successful = sum(m["successful"] for m in _module_metrics.values())
     
-    # Calculate error rates
-    error_rate = total_errors / total_attempts if total_attempts > 0 else 0
-    
+    # Calculate error rate only once
+    error_rate = 0.0
+    if total_attempts > 0:
+        total_errors = sum(m["errors"] for m in _module_metrics.values())
+        error_rate = total_errors / total_attempts
     # Format for specific domains
     diagnostic_modules = ["AMA", "AI-MPN"]
     treatment_modules = ["TDBE", "SMCC"]
@@ -465,54 +569,42 @@ def get_quality_metrics() -> Dict[str, Any]:
     # Prepare detailed metrics
     metrics = {
         "modules": {
-            module: {
-                "accuracy": round(1.0 - (data["errors"] / data["attempts"]) if data["attempts"] > 0 else 1.0, 3),
-                "avg_time_ms": round(data["avg_time_ms"], 2),
-                "attempts": data["attempts"],
-                "successful": data["successful"],
-                "errors": data["errors"]
-            }
+            module: _prepare_module_metrics(module, data)
             for module, data in _module_metrics.items()
         },
         "domains": {
             "diagnosis": {
-                "accuracy": round(
-                    1.0 - sum((_module_metrics[m]["errors"] for m in diagnostic_modules)) / 
-                    max(1, sum((_module_metrics[m]["attempts"] for m in diagnostic_modules))), 
-                    3
-                )
+                "accuracy": _calculate_domain_accuracy(diagnostic_modules)
             },
             "treatment": {
-                "accuracy": round(
-                    1.0 - sum((_module_metrics[m]["errors"] for m in treatment_modules)) / 
-                    max(1, sum((_module_metrics[m]["attempts"] for m in treatment_modules))), 
-                    3
-                )
+                "accuracy": _calculate_domain_accuracy(treatment_modules)
             },
             "humanization": {
-                "accuracy": round(
-                    1.0 - sum((_module_metrics[m]["errors"] for m in humanization_modules)) / 
-                    max(1, sum((_module_metrics[m]["attempts"] for m in humanization_modules))), 
-                    3
-                )
+                "accuracy": _calculate_domain_accuracy(humanization_modules)
             }
         },
+        "overall": {
         "overall": {
             "total_validations": total_attempts,
             "error_rate": round(error_rate, 3),
             "success_rate": round(1.0 - error_rate, 3),
-            "models_loaded": len(_model_cache),
+            "models_loaded": get_loaded_model_count(),
             "uptime_stats": medical_logger.get_stats()
-        }
     }
     
     return metrics
 
-# Try to load the default model on startup
+# Initialize semantic validation service
+logger.info("=" * 50)
+logger.info("Initializing Semantic Validation Service")
+logger.info("-" * 50)
+logger.info(f"Default model: {DEFAULT_MODEL}")
+logger.info(f"Variation threshold: {VARIATION_THRESHOLD}")
 try:
-    default_model = config.get_model()
-    logger.info(f"Preloading default model: {default_model}")
-    load_model(default_model)
+    load_model(DEFAULT_MODEL)
+    logger.info(f"✓ Model preloaded successfully")
+    logger.info("-" * 50)
 except Exception as e:
-    # Non-fatal error, log and continue (model will be loaded on first request)
-    logger.warning(f"Could not preload model: {str(e)}")
+    logger.warning(f"! Model preload failed: {str(e)}")
+    logger.info("! Model will be loaded on first request")
+    logger.info("-" * 50)
